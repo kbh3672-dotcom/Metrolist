@@ -1,0 +1,22 @@
+name: Build Debug APK
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Recreate debug keystore
+        run: |
+          rm -f app/persistent-debug.keystore
+          keytool -genkeypair -v -keystore app/persistent-debug.keystore -storetype PKCS12 -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - run: chmod +x gradlew
+      - run: ./gradlew --console=plain assembleGmsDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Metrolist-debug-apk
+          path: app/build/outputs/apk/**/*.apk

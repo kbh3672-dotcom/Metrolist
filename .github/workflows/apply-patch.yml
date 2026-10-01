@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 patch_player.py
+      - run: python3 patch_lyrics_toggle.py
       - run: |
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"

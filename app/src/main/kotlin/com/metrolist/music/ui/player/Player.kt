@@ -38,6 +38,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -935,6 +936,7 @@ fun BottomSheetPlayer(
             )
         },
     ) {
+        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
             val playPauseRoundness by animateDpAsState(
                 targetValue = if (isPlaying) 24.dp else 36.dp,
@@ -942,7 +944,143 @@ fun BottomSheetPlayer(
                 label = "playPauseRoundness",
             )
 
-            Row(
+            if (isLandscape) {
+                // [custom-landscape]
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = PlayerHorizontalPadding),
+                ) {
+                    AnimatedContent(
+                        targetState = mediaMetadata.title,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = "",
+                    ) { title ->
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = TextBackgroundColor,
+                            modifier =
+                                Modifier
+                                    .basicMarquee(
+                                        iterations = Int.MAX_VALUE,
+                                        initialDelayMillis = 1000,
+                                        velocity = 30.dp,
+                                    ).combinedClickable(
+                                        enabled = true,
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = {
+                                            val albumId = mediaMetadata.album?.id
+                                                ?: currentSong?.album?.id
+                                                ?: currentSong?.song?.albumId
+                                            if (albumId != null) {
+                                                navController.navigate("album/$albumId")
+                                                state.collapseSoft()
+                                            }
+                                        },
+                                        onLongClick = {
+                                            val clip = ClipData.newPlainText(copiedTitleStr, title)
+                                            clipboardManager.setPrimaryClip(clip)
+                                            Toast.makeText(context, copiedTitleStr, Toast.LENGTH_SHORT).show()
+                                        },
+                                    ),
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        if (mediaMetadata.explicit) MIcon.Explicit()
+
+                        val artistText =
+                            mediaMetadata.artists
+                                .map { it.name }
+                                .filter { it.isNotBlank() }
+                                .joinToString(", ")
+
+                        Text(
+                            text = artistText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextBackgroundColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .basicMarquee(iterations = 1, initialDelayMillis = 3000, velocity = 30.dp)
+                                    .combinedClickable(
+                                        enabled = true,
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = {
+                                            val artistId =
+                                                mediaMetadata.artists
+                                                    .firstOrNull { !it.id.isNullOrBlank() }
+                                                    ?.id
+                                            if (artistId != null) {
+                                                navController.navigate("artist/$artistId")
+                                                state.collapseSoft()
+                                            }
+                                        },
+                                        onLongClick = {
+                                            val clip = ClipData.newPlainText(copiedArtistStr, artistText)
+                                            clipboardManager.setPrimaryClip(clip)
+                                            Toast.makeText(context, copiedArtistStr, Toast.LENGTH_SHORT).show()
+                                        },
+                                    ),
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Box(
+                            modifier =
+                                Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(textButtonColor)
+                                    .clickable {
+                                        val intent =
+                                            Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                type = "text/plain"
+                                                putExtra(
+                                                    Intent.EXTRA_TEXT,
+                                                    "https://music.youtube.com/watch?v=${mediaMetadata.id}",
+                                                )
+                                            }
+                                        context.startActivity(Intent.createChooser(intent, null))
+                                    },
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.share),
+                                contentDescription = null,
+                                tint = iconButtonColor,
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.Center)
+                                        .size(24.dp),
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        PlayerMoreMenuButton(
+                            mediaMetadata = mediaMetadata,
+                            state = state,
+                            textButtonColor = textButtonColor,
+                            iconButtonColor = iconButtonColor,
+                        )
+                    }
+                }
+            } else {
+Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
                 modifier =
@@ -1366,6 +1504,7 @@ fun BottomSheetPlayer(
                 }
             }
 
+}
             Spacer(Modifier.height(24.dp))
 
             when (sliderStyle) {
@@ -1861,55 +2000,80 @@ fun BottomSheetPlayer(
                             ).padding(bottom = 24.dp)
                             .fillMaxSize(),
                 ) {
+                    // 좌측 절반: 가사 항상 고정
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier =
                             Modifier
                                 .weight(1f)
+                                .fillMaxSize()
                                 .nestedScroll(state.preUpPostDownNestedScrollConnection),
                     ) {
-                        // Remember lambdas to prevent unnecessary recomposition
-                        val currentSliderPosition by rememberUpdatedState(sliderPosition)
-                        val sliderPositionProvider = remember { { currentSliderPosition } }
-                        val isExpandedProvider = remember(state) { { state.isExpanded } }
-                        AnimatedContent(
-                            targetState = showInlineLyrics,
-                            label = "Lyrics",
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                        ) { showLyrics ->
-                            if (showLyrics) {
-                                InlineLyricsView(
-                                    mediaMetadata = mediaMetadata,
-                                    showLyrics = showLyrics,
-                                    positionProvider = { effectivePosition },
-                                )
-                            } else {
-                                Thumbnail(
-                                    sliderPositionProvider = sliderPositionProvider,
-                                    modifier = Modifier.animateContentSize(),
-                                    isPlayerExpanded = isExpandedProvider,
-                                    isLandscape = true,
-                                    isListenTogetherGuest = isListenTogetherGuest,
-                                )
-                            }
-                        }
+                        InlineLyricsView(
+                            mediaMetadata = mediaMetadata,
+                            showLyrics = true,
+                            positionProvider = { effectivePosition },
+                        )
                     }
 
+                    // 우측 절반: 위 = 큰 썸네일, 아래 = 플레이어
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier =
                             Modifier
-                                .weight(if (showInlineLyrics) 0.65f else 1f, false)
-                                .animateContentSize()
-                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top)),
+                                .weight(1f)
+                                .fillMaxSize()
+                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+                                .padding(bottom = QueuePeekHeight),
                     ) {
-                        Spacer(Modifier.weight(1f))
+                        BoxWithConstraints(
+                            contentAlignment = Alignment.TopCenter,
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, bottom = 16.dp),
+                        ) {
+                            // 슬라이더와 같은 폭의 정사각형 (세로 공간이 모자라면 그에 맞춤)
+                            val coverSize =
+                                maxOf(
+                                    0.dp,
+                                    minOf(maxWidth - PlayerHorizontalPadding * 2, maxHeight),
+                                )
+                            val coverShape = RoundedCornerShape(24.dp) // 재생 중 일시정지 버튼 곡률
+
+                            if (hidePlayerThumbnail) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier =
+                                        Modifier
+                                            .size(coverSize)
+                                            .clip(coverShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.small_icon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = textButtonColor.copy(alpha = 0.7f),
+                                    )
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = mediaMetadata?.thumbnailUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier =
+                                        Modifier
+                                            .size(coverSize)
+                                            .clip(coverShape),
+                                )
+                            }
+                        }
 
                         mediaMetadata?.let {
                             controlsContent(it)
                         }
-
-                        Spacer(Modifier.weight(1f))
                     }
                 }
             }

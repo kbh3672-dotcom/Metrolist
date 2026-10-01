@@ -1039,44 +1039,113 @@ fun BottomSheetPlayer(
 
                         Spacer(modifier = Modifier.width(12.dp))
 
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(textButtonColor)
-                                    .clickable {
-                                        val intent =
-                                            Intent().apply {
-                                                action = Intent.ACTION_SEND
-                                                type = "text/plain"
-                                                putExtra(
-                                                    Intent.EXTRA_TEXT,
-                                                    "https://music.youtube.com/watch?v=${mediaMetadata.id}",
-                                                )
-                                            }
-                                        context.startActivity(Intent.createChooser(intent, null))
-                                    },
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.share),
-                                contentDescription = null,
-                                tint = iconButtonColor,
-                                modifier =
-                                    Modifier
-                                        .align(Alignment.Center)
-                                        .size(24.dp),
-                            )
+                        AnimatedContent(
+                            targetState = showInlineLyrics,
+                            label = "LandscapeButtons",
+                        ) { showLyrics ->
+                            // [custom-lyrics-toggle]
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (showLyrics) {
+                                    // 가사 모드: 전체화면 버튼 + 가사 메뉴(...) 버튼
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .background(textButtonColor)
+                                                .clickable { isFullScreen = !isFullScreen },
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.fullscreen),
+                                            contentDescription = null,
+                                            tint = iconButtonColor,
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.Center)
+                                                    .size(24.dp),
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    val currentLyrics by playerConnection.currentLyrics.collectAsStateWithLifecycle(initialValue = null)
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .background(textButtonColor)
+                                                .clickable {
+                                                    menuState.show {
+                                                        com.metrolist.music.ui.menu.LyricsMenu(
+                                                            lyricsProvider = { currentLyrics },
+                                                            songProvider = { currentSong?.song },
+                                                            mediaMetadataProvider = { mediaMetadata },
+                                                            onDismiss = menuState::dismiss,
+                                                            onShowOffsetDialog = {
+                                                                bottomSheetPageState.show {
+                                                                    ShowOffsetDialog(
+                                                                        songProvider = { currentSong?.song },
+                                                                    )
+                                                                }
+                                                            },
+                                                        )
+                                                    }
+                                                },
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.more_horiz),
+                                            contentDescription = null,
+                                            tint = iconButtonColor,
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.Center)
+                                                    .size(24.dp),
+                                        )
+                                    }
+                                } else {
+                                    // 기본 모드: 공유 버튼 + 더보기 버튼
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(24.dp))
+                                                .background(textButtonColor)
+                                                .clickable {
+                                                    val intent =
+                                                        Intent().apply {
+                                                            action = Intent.ACTION_SEND
+                                                            type = "text/plain"
+                                                            putExtra(
+                                                                Intent.EXTRA_TEXT,
+                                                                "https://music.youtube.com/watch?v=${mediaMetadata.id}",
+                                                            )
+                                                        }
+                                                    context.startActivity(Intent.createChooser(intent, null))
+                                                },
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.share),
+                                            contentDescription = null,
+                                            tint = iconButtonColor,
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.Center)
+                                                    .size(24.dp),
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    PlayerMoreMenuButton(
+                                        mediaMetadata = mediaMetadata,
+                                        state = state,
+                                        textButtonColor = textButtonColor,
+                                        iconButtonColor = iconButtonColor,
+                                    )
+                                }
+                            }
                         }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        PlayerMoreMenuButton(
-                            mediaMetadata = mediaMetadata,
-                            state = state,
-                            textButtonColor = textButtonColor,
-                            iconButtonColor = iconButtonColor,
-                        )
                     }
                 }
             } else {
